@@ -103,3 +103,6 @@ src/Setup/PortableRelease
 
 src/SetupDLL/Debug
 src/SetupDLL/Release
+
+src/Tests/Debug
+src/Tests/Release

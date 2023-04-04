@@ -1,5 +1,7 @@
 #include "gtest/gtest.h"
 
+#include "IccDataExtractor.h"
+
 TEST(setup_test_case, testWillPass)
 {
 

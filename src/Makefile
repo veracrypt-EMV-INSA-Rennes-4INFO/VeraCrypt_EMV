@@ -486,7 +486,7 @@ endif
 
 #------ Project build ------
 
-PROJ_DIRS := Platform Volume Driver/Fuse Core Main
+PROJ_DIRS := Platform Volume Driver/Fuse Core Main Tests
 
 .PHONY: all clean wxbuild
 

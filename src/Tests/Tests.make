@@ -41,7 +41,8 @@ GTEST_HEADERS = $(GTEST_DIR)/gtest/*.h \
 all : $(TESTS)
 
 clean :
-	rm -f $(TESTS) gtest.a gtest_main.a *.o
+	@echo Cleaning Tests
+	rm -f gtest.a gtest_main.a Tests.a *.o *.d
 
 # Builds gtest.a and gtest_main.a.
 
@@ -68,7 +69,7 @@ gtest_main.a : gtest-all.o gtest_main.o
 	$(AR) $(ARFLAGS) $@ $^
 	
 Tests.o : $(USER_DIR)/Tests.cpp $(GTEST_HEADERS)
-	$(CXX) $(CPPFLAGS) $(CXXFLAGS) -c $<
+	$(CXX) $(CPPFLAGS) -I ../Common/ -I ../ $(CXXFLAGS) -c $<
 	
 Tests : Tests.o gtest.a gtest_main.a
 	$(CXX) $(CPPFLAGS) $(CXXFLAGS) -lpthread $^ -o $@

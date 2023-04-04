@@ -107,5 +107,7 @@ src/SetupDLL/Release
 src/gtest/Debug
 src/gtest/Release
 
+src/Tests/Tests
+
 src/Tests/Debug
 src/Tests/Release

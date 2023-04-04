@@ -104,5 +104,8 @@ src/Setup/PortableRelease
 src/SetupDLL/Debug
 src/SetupDLL/Release
 
+src/gtest/Debug
+src/gtest/Release
+
 src/Tests/Debug
 src/Tests/Release

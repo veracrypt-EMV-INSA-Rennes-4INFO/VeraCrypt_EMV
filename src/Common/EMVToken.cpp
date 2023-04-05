@@ -68,7 +68,14 @@ namespace VeraCrypt
 
 	vector<EMVTokenKeyfile> EMVToken::GetAvailableKeyfiles(unsigned long int* slotIdFilter, const wstring keyfileIdFilter) {
 		vector <EMVTokenKeyfile> keyfiles;
-		unsigned long int nb = EMVToken::extractor.GetReaders();
+		unsigned long int nb = 0;
+
+		try{
+			nb = EMVToken::extractor.GetReaders();
+		}catch(ICCExtractionException){
+			cout << "PB pour lister les lecteurs" << endl;
+		}
+
 		for(unsigned long int slotId = 0; slotId<nb; slotId++)
 		{
 			EMVTokenInfo token;
@@ -82,7 +89,6 @@ namespace VeraCrypt
 				cout << "Not EMV Type" << endl;
 				continue;
 			}
-
 
 			EMVTokenKeyfile keyfile;
 			keyfile.Token->SlotId = slotId;
@@ -104,7 +110,6 @@ namespace VeraCrypt
 		token.SlotId = slotId;
 		//card numbers extraction
 		std::string w = EMVToken::extractor.GettingPAN(slotId);
-
 		token.Label = L"EMV card ****-" + (wstring (w.begin(), w.end())).substr(w.size()-4);
 
 		return token;

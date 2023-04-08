@@ -4,19 +4,31 @@
 
 #include "IccDataExtractor.h"
 
+#if !defined (TC_WINDOWS) || defined (TC_PROTOTYPE)
+#	include "Platform/SerializerFactory.h"
+#	include "Platform/StringConverter.h"
+#	include "Platform/SystemException.h"
+#else
+#	include "Dictionary.h"
+#	include "Language.h"
+#endif
+
+#include "Tcdefs.h"
+
 namespace VeraCrypt
 {
+
+
+	#ifdef TC_WINDOWS
+	bool VeraCrypt::IccDataExtractor::Initialized;
+	#endif
 	//using namespace std;
 	const BYTE IccDataExtractor::SELECT_MASTERCARD[] = {00, 0xA4, 0x04, 00, 0x07, 0xA0, 00, 00, 00, 0x04, 0x10, 0x10};
 	const BYTE IccDataExtractor::SELECT_VISA[] = {00, 0xA4, 0x04, 00, 0x07, 0xA0, 00, 00, 00, 0x03, 0x10, 0x10};
 	const BYTE IccDataExtractor::SELECT_AMEX[] = {00, 0xA4, 0x04, 00, 0x07, 0xA0, 00, 00, 00, 00, 0x25, 0x10};
 	const BYTE * IccDataExtractor::SELECT_TYPES[]={SELECT_MASTERCARD,  SELECT_VISA, SELECT_AMEX};
 
-	IccDataExtractor::IccDataExtractor(){
-		#ifdef TC_WINDOWS
-		InitLibrary();
-		#endif
-	}
+	IccDataExtractor::IccDataExtractor(){}
 
 	IccDataExtractor::~IccDataExtractor(){
 		/* Disconnect card if connected */
@@ -47,6 +59,7 @@ namespace VeraCrypt
 			#endif
 		}
 
+		/* Freeing winscard library */
 		#ifdef TC_WINDOWS
 		FreeLibrary(WinscardLibraryHandle);
 		#endif
@@ -54,9 +67,11 @@ namespace VeraCrypt
 
 	#ifdef TC_WINDOWS
 	void IccDataExtractor::InitLibrary(){
-		
+
+		if(Initialized) return;
+
 		/* Getting the System32 directory */
-		char sysDir[MAX_PATH];
+		char sysDir[MAX_PATH-20];
 		GetSystemDirectoryA(sysDir, MAX_PATH);
 		
 		/* Getting the winscard dll path directory */
@@ -69,12 +84,28 @@ namespace VeraCrypt
 
 		/* Fetching the functions pointers from the dll */
 		WSCardEstablishContext = (SCardEstablishContextPtr) GetProcAddress(WinscardLibraryHandle,"SCardEstablishContext");
+		if(!WSCardEstablishContext) throw WinscardLibraryNotInitialized();
+
 		WSCardReleaseContext= (SCardReleaseContextPtr) GetProcAddress(WinscardLibraryHandle,"SCardReleaseContext");
+		if(!WSCardReleaseContext) throw WinscardLibraryNotInitialized();
+
 		WSCardConnectA = (SCardConnectAPtr) GetProcAddress(WinscardLibraryHandle,"SCardConnectA");
+		if(!WSCardConnectA) throw WinscardLibraryNotInitialized();
+
 		WSCardDisconnect = (SCardDisconnectPtr) GetProcAddress(WinscardLibraryHandle,"SCardDisconnect");
+		if(!WSCardDisconnect) throw WinscardLibraryNotInitialized();
+
 		WSCardFreeMemory = ( SCardFreeMemoryPtr) GetProcAddress(WinscardLibraryHandle,"SCardFreeMemory");
+		if(!WSCardFreeMemory) throw WinscardLibraryNotInitialized();
+
 		WSCardListReadersA =  (SCardListReadersAPtr) GetProcAddress(WinscardLibraryHandle,"SCardListReadersA");
+		if(!WSCardListReadersA) throw WinscardLibraryNotInitialized();
+
 		WSCardTransmit = ( SCardTransmitPtr) GetProcAddress(WinscardLibraryHandle,"SCardTransmit");
+		if(!WSCardTransmit) throw WinscardLibraryNotInitialized();
+
+		Initialized = true;
+		
 	}
 	#endif
 
@@ -100,6 +131,11 @@ namespace VeraCrypt
 	/* Detecting available readers and filling the reader table */
 	unsigned long IccDataExtractor::GetReaders(){
 
+		#ifdef TC_WINDOWS
+		if(!Initialized) 
+			throw WinscardLibraryNotInitialized();
+		#endif 
+
 		EstablishRSContext();
 
 		/* Length of the mszReaders buffer in characters. If the buffer length is specified as
@@ -119,12 +155,11 @@ namespace VeraCrypt
 
 		/* Check if the listing of the connected readers was unsuccessful  */
 		if (returnValue != SCARD_S_SUCCESS)
-			throw ICCExtractionException("Error when fetching readers: " + PCSCException(returnValue).ErrorMessage());
+			throw PCSCException(returnValue);
  
 		nbReaders = 0;
 		LPSTR ReaderPtr = mszReaders;
 		
-
 		/* Getting the total number of readers */
 		while (*ReaderPtr != '\0')
 		{
@@ -141,7 +176,7 @@ namespace VeraCrypt
 
 		/* Check if the given reader slot number is possible */
 		if (reader_nb < 0 || reader_nb >= nbReaders)
-			throw ICCExtractionException("Wrong reader index: "+std::to_string(static_cast<long long>(reader_nb)));
+			throw InvalidEMVPath();
 
 		dwActiveProtocol = SCARD_PROTOCOL_UNDEFINED;
 	
@@ -200,7 +235,7 @@ namespace VeraCrypt
 
 		/* It received a response. Check if it didn't get a recognisable response */
 		if (dwRecvLength < 2)
-			throw ICCExtractionException("Testing card type response not recognisable");
+			return false;
 
 		/* Check if the command successfully executed (the card is the type passed in the parameter) */
 		if (pbRecvBuffer[0] == 0x61)
@@ -279,13 +314,21 @@ namespace VeraCrypt
 
 				/* It received a response. Check if it didn't get a recognisable response */
 				if (dwRecvLength < 2)
-					throw ICCExtractionException("Getting folder data response not recognisable");
+					continue;
 
 				/* Parsing the TLV */
-				node = TLVParser::TLV_Parse(pbRecvBufferFat,sizeof(pbRecvBufferFat));
+				try{
+					node = TLVParser::TLV_Parse(pbRecvBufferFat,sizeof(pbRecvBufferFat));
+				}catch(TLVException){
+					continue;
+				}
 
 				/* Finding the ICC_Public_Key_Certificate */
-				ICC_Public_Key_Certificate = TLVParser::TLV_Find(node, 0x9F46);
+				try{
+					ICC_Public_Key_Certificate = TLVParser::TLV_Find(node, 0x9F46);
+				}catch(TLVException){
+					continue;
+				}
 				if(ICC_Public_Key_Certificate) {
 					iccFound=true;
 					for (int i = 0; i < ICC_Public_Key_Certificate->Length;i++) {
@@ -294,7 +337,12 @@ namespace VeraCrypt
 				}
 
 				/* Finding the Issuer_Public_Key_Certificate */
-				Issuer_PK_Certificate = TLVParser::TLV_Find(node, 0x90);
+				try{
+					Issuer_PK_Certificate = TLVParser::TLV_Find(node, 0x90);
+				}catch(TLVException){
+					continue;
+				}
+
 				if(Issuer_PK_Certificate) {
 					issuerFound=true;
 					for (int i = 0; i < Issuer_PK_Certificate->Length;i++) {
@@ -304,11 +352,16 @@ namespace VeraCrypt
 
 				/* Limiting the search to at least one occurrence of both PKs to speed up the process.
 				* There might be more certificates tho */
-				if(iccFound && issuerFound) return;
+				if(iccFound && issuerFound){
+                    burn(pbRecvBuffer, sizeof(pbRecvBuffer));
+                    burn(pbRecvBufferFat, sizeof(pbRecvBufferFat));
+                    return;
+                }
 			}
 		}
-
-		throw ICCExtractionException("At least one of the PK is missing in this application");
+        burn(pbRecvBuffer, sizeof(pbRecvBuffer));
+        burn(pbRecvBufferFat, sizeof(pbRecvBufferFat));
+		throw EMVKeyfileDataNotFound();
 	}
 
 	/* Getting CPCL data from the card*/
@@ -340,7 +393,7 @@ namespace VeraCrypt
 
 		/* Not the correct APDU response code */
 		if (pbRecvBuffer[0] != 0x6C)
-			throw ICCExtractionException("Not the correct APDU response code when checking for CPCL data");
+			throw EMVKeyfileDataNotFound();
 
 		/* It set the proper expected length of the data in the APDU */
 		SELECT_APDU_CPCL[4] = pbRecvBuffer[1];
@@ -360,76 +413,52 @@ namespace VeraCrypt
 
 		/* It received a response. Check if it didn't get a recognisable response */
 		if (dwRecvLength < 2)
-			throw ICCExtractionException("Getting CPCl data response not recognisable");
+			throw EMVKeyfileDataNotFound();
 
 		/* We add CPCL data and crop the TAG and the data length at the start and the trailer at the end */
 		for (unsigned long i = 3; i < dwRecvLength-2; i++) {
 			v.push_back(static_cast<byte>(pbRecvBufferFat[i]));
 		}
+        burn(pbRecvBuffer, sizeof(pbRecvBuffer));
+        burn(pbRecvBufferFat, sizeof(pbRecvBufferFat));
+
 	}
 
 	/* Getting an ICC Public Key Certificates and an Issuer Public Key Certificates for the first application with the cpcl
 	* data present on the card and finally merge it into one byte array */
 	void IccDataExtractor::GettingAllCerts(int readerNumber, vector<byte> &v){
-		bool isEMV= false;
-		bool hasCerts=false;
 
-		try{
-			ConnectCard(readerNumber);
-		}catch(const PCSCException &ex){
-			throw ICCExtractionException("Error when connecting to card. " + ex.ErrorMessage());
-		}
+		#ifdef TC_WINDOWS
+		if(!Initialized) 
+			throw WinscardLibraryNotInitialized();
+		#endif 
+
+		bool isEMV= false;
+
+		ConnectCard(readerNumber);
 
 		/* Test all the type of applications and get the certificates from the first one found */
 		for(int i=0;i<sizeof(SELECT_TYPES)/sizeof(SELECT_TYPES[0]); i++){
 
-			try{
-				/* The card does not contain this application (0:Mastercard, 1:Visa, 2:Amex) */
-				if(!TestingCardType(i)) continue;
-				isEMV= true;
-				GetCerts(v);
-				hasCerts=true;
-				break;
-			}catch(const TLVException &ex){
-				throw ICCExtractionException("Error when parsing the TLV when getting the certificates:" + ex.ErrorMessage());
-			}catch(const PCSCException &ex){
-				throw ICCExtractionException("Error when fetching the certificates. " + ex.ErrorMessage());
-			}
-
+			/* The card does not contain this application (0:Mastercard, 1:Visa, 2:Amex) */
+			if(!TestingCardType(i)) continue;
+			isEMV= true;
+			GetCerts(v);
+			break;
 		}
 
 		/* Need to disconnect reconnect the card to access CPLC data (not located in any application) */
-		try{
-			DisconnectCard();
-		}catch(const PCSCException &ex){
-			throw ICCExtractionException("Error when disconnecting the card. " + ex.ErrorMessage());
-		}
+		DisconnectCard();
 
 		/* Check if the card is not an EMV one */
 		if(!isEMV)
-			throw ICCExtractionException("Unknown card type");
+			throw EMVUnknownCardType();
 
-		/* Not enough data to act as a keyfile (CPLC data is not enough) */
-		if (!hasCerts)
-			throw ICCExtractionException("No certificates on the card");
+		ConnectCard(readerNumber);
 
-		try{
-			ConnectCard(readerNumber);
-		}catch(const PCSCException &ex){
-			throw ICCExtractionException("Error when connecting to card. " + ex.ErrorMessage());
-		}
+		GetCPCL(v);
 
-		try{
-			GetCPCL(v);
-		}catch(const PCSCException &ex){
-			throw ICCExtractionException("Error when fetching the CPCL data. " + ex.ErrorMessage());
-		}
-
-		try{
-			DisconnectCard();
-		}catch(const PCSCException &ex){
-			throw ICCExtractionException("Error when disconnecting the card. " + ex.ErrorMessage());
-		}
+		DisconnectCard();
 	}
 
 	/* Getting the PAN  by parsing the application
@@ -497,28 +526,45 @@ namespace VeraCrypt
 
 				/* It received a response. Check if it didn't get a recognisable response */
 				if (dwRecvLength < 2)
-					throw ICCExtractionException("Getting folder data response not recognisable");
+					continue;
 
 				/* Parsing the TLV */
-				node = TLVParser::TLV_Parse(pbRecvBufferFat,sizeof(pbRecvBufferFat));
+				try{
+					node = TLVParser::TLV_Parse(pbRecvBufferFat,sizeof(pbRecvBufferFat));
+				}catch(TLVException){
+					continue;
+				}
 
 				/* Finding the PAN */
-				PAN = TLVParser::TLV_Find(node, 0x5A);
+				try{
+					PAN = TLVParser::TLV_Find(node, 0x5A);
+				}catch(TLVException){
+					continue;
+				}
 				if(PAN) {
 					PANFound=true;
-					for (int i = 0; i < PAN->Length;i++) {
-						v.push_back(static_cast<byte>(PAN->Value[i]));
+					if (PAN->Length >= 8){
+						for (int i = 6; i < 8;i++) {
+							v.push_back(static_cast<byte>(PAN->Value[i]));
+						}
 					}
 				}
-				if(PANFound) return ;
+
+				if(PANFound){
+                    burn(pbRecvBuffer, sizeof(pbRecvBuffer));
+                    burn(pbRecvBufferFat, sizeof(pbRecvBufferFat));
+                    return ;
+                }
 			}
 		}
-
-		throw ICCExtractionException("PAN not found");
+        burn(pbRecvBuffer, sizeof(pbRecvBuffer));
+        burn(pbRecvBufferFat, sizeof(pbRecvBufferFat));
+		throw EMVPANNotFound();
 	}
 
+	/* Helper function to transform the PAN received (vector of byte) to a string */
 	template<typename TInputIter>
-	string IccDataExtractor::make_hex_string(TInputIter first, TInputIter last, bool use_uppercase, bool insert_spaces) {
+	void IccDataExtractor::make_hex_string(TInputIter first, TInputIter last, string& returnValue, bool use_uppercase, bool insert_spaces) {
 		ostringstream ss;
 		ss << hex << std::setfill('0');
 		if (use_uppercase)
@@ -529,45 +575,203 @@ namespace VeraCrypt
 			if (insert_spaces && first != last)
 				ss << " ";
 		}
-		return ss.str();
+
+		returnValue = ss.str();
 	}
 
-	string IccDataExtractor::GettingPAN(int readerNumber) {
+	/* Wrapper function to get the PAN of the card*/
+	void IccDataExtractor::GettingPAN(int readerNumber, string& panString) {
+
+		#ifdef TC_WINDOWS
+		if(!Initialized) 
+			throw WinscardLibraryNotInitialized();
+		#endif 
+
 		vector<byte> PAN;
 
 		bool isEMV= false;
 
-		try{
-			ConnectCard(readerNumber);
-		}catch(const PCSCException &ex){
-			throw ICCExtractionException("Error when connecting to card. " + ex.ErrorMessage());
-		}
+		ConnectCard(readerNumber);
 
 		/* Test all the type of applications and get the PAN from the first one found */
 		for(int i=0;i<sizeof(SELECT_TYPES)/sizeof(SELECT_TYPES[0]); i++){
-			try{
-				/* The card does not contain this application (0:Mastercard, 1:Visa, 2:Amex) */
-				if(!TestingCardType(i)) continue;
-				isEMV=true;
-				GetPAN(PAN);
-				break;
-			}catch(const TLVException &ex){
-				throw ICCExtractionException("Error when parsing the TLV when getting the PAN:" + ex.ErrorMessage());
-			}catch(const PCSCException &ex){
-				throw ICCExtractionException("Error when fetching the PAN. " + ex.ErrorMessage());
-			}
+
+			/* The card does not contain this application (0:Mastercard, 1:Visa, 2:Amex) */
+			if(!TestingCardType(i)) continue;
+			isEMV=true;
+			GetPAN(PAN);
+			break;
 		}
 
-		try{
-			DisconnectCard();
-		}catch(const PCSCException &ex){
-			throw ICCExtractionException("Error when disconnecting the card. " + ex.ErrorMessage());
-		}
+		DisconnectCard();
 
 		/* Check if the card is not an EMV one */
 		if(!isEMV)
-			throw ICCExtractionException("Unknown card type");
+			throw EMVUnknownCardType();
 
-		return make_hex_string(PAN.begin(),PAN.end());
+		make_hex_string(PAN.begin(),PAN.end(),panString);
+
+		burn(&PAN.front(),PAN.size());
 	}
+
+	PCSCException::operator string() const{
+		if (ErrorCode == SCARD_S_SUCCESS)
+			return string();
+
+		static const struct{
+			LONG ErrorCode;
+			const char* ErrorString;
+		} ErrorStrings[] = {
+			#define SC_ERR(CODE) { CODE, #CODE },
+#ifdef TC_WINDOWS
+                SC_ERR(ERROR_BROKEN_PIPE)
+            SC_ERR(SCARD_E_NO_PIN_CACHE)
+            SC_ERR(SCARD_E_PIN_CACHE_EXPIRED)
+            SC_ERR(SCARD_E_READ_ONLY_CARD)
+            SC_ERR(SCARD_W_CACHE_ITEM_NOT_FOUND)
+            SC_ERR(SCARD_W_CACHE_ITEM_STALE)
+            SC_ERR(SCARD_W_CACHE_ITEM_TOO_BIG)
+#endif
+                SC_ERR(SCARD_E_BAD_SEEK)
+                SC_ERR(SCARD_E_CANCELLED)
+                SC_ERR(SCARD_E_CANT_DISPOSE)
+                SC_ERR(SCARD_E_CARD_UNSUPPORTED)
+                SC_ERR(SCARD_E_CERTIFICATE_UNAVAILABLE)
+                SC_ERR(SCARD_E_COMM_DATA_LOST)
+                SC_ERR(SCARD_E_COMM_DATA_LOST)
+                SC_ERR(SCARD_E_DIR_NOT_FOUND)
+                SC_ERR(SCARD_E_DUPLICATE_READER)
+                SC_ERR(SCARD_E_FILE_NOT_FOUND)
+                SC_ERR(SCARD_E_ICC_CREATEORDER)
+                SC_ERR(SCARD_E_ICC_INSTALLATION)
+                SC_ERR(SCARD_E_INSUFFICIENT_BUFFER)
+                SC_ERR(SCARD_E_INVALID_ATR)
+                SC_ERR(SCARD_E_INVALID_CHV)
+                SC_ERR(SCARD_E_INVALID_HANDLE)
+                SC_ERR(SCARD_E_INVALID_PARAMETER)
+                SC_ERR(SCARD_E_INVALID_TARGET)
+                SC_ERR(SCARD_E_INVALID_VALUE)
+                SC_ERR(SCARD_E_NO_ACCESS)
+                SC_ERR(SCARD_E_NO_DIR)
+                SC_ERR(SCARD_E_NO_FILE)
+                SC_ERR(SCARD_E_NO_KEY_CONTAINER)
+                SC_ERR(SCARD_E_NO_MEMORY)
+                SC_ERR(SCARD_E_NO_READERS_AVAILABLE)
+                SC_ERR(SCARD_E_NO_SERVICE)
+                SC_ERR(SCARD_E_NO_SMARTCARD)
+                SC_ERR(SCARD_E_NO_SUCH_CERTIFICATE)
+                SC_ERR(SCARD_E_NOT_READY)
+                SC_ERR(SCARD_E_NOT_TRANSACTED)
+                SC_ERR(SCARD_E_PCI_TOO_SMALL)
+                SC_ERR(SCARD_E_PROTO_MISMATCH)
+                SC_ERR(SCARD_E_READER_UNAVAILABLE)
+                SC_ERR(SCARD_E_READER_UNSUPPORTED)
+                SC_ERR(SCARD_E_SERVER_TOO_BUSY)
+                SC_ERR(SCARD_E_SERVICE_STOPPED)
+                SC_ERR(SCARD_E_SHARING_VIOLATION)
+                SC_ERR(SCARD_E_SYSTEM_CANCELLED)
+                SC_ERR(SCARD_E_TIMEOUT)
+                SC_ERR(SCARD_E_UNEXPECTED)
+                SC_ERR(SCARD_E_UNKNOWN_CARD)
+                SC_ERR(SCARD_E_UNKNOWN_READER)
+                SC_ERR(SCARD_E_UNKNOWN_RES_MNG)
+                SC_ERR(SCARD_E_UNSUPPORTED_FEATURE)
+                SC_ERR(SCARD_E_WRITE_TOO_MANY)
+                SC_ERR(SCARD_F_COMM_ERROR)
+                SC_ERR(SCARD_F_INTERNAL_ERROR)
+                SC_ERR(SCARD_F_UNKNOWN_ERROR)
+                SC_ERR(SCARD_W_CANCELLED_BY_USER)
+                SC_ERR(SCARD_W_CARD_NOT_AUTHENTICATED)
+                SC_ERR(SCARD_W_CHV_BLOCKED)
+                SC_ERR(SCARD_W_EOF)
+                SC_ERR(SCARD_W_REMOVED_CARD)
+                SC_ERR(SCARD_W_RESET_CARD)
+                SC_ERR(SCARD_W_SECURITY_VIOLATION)
+                SC_ERR(SCARD_W_UNPOWERED_CARD)
+                SC_ERR(SCARD_W_UNRESPONSIVE_CARD)
+                SC_ERR(SCARD_W_UNSUPPORTED_CARD)
+                SC_ERR(SCARD_W_WRONG_CHV)
+#undef SC_ERR
+		};
+
+		for (size_t i = 0; i < array_capacity(ErrorStrings); ++i)
+		{
+			if (ErrorStrings[i].ErrorCode == ErrorCode)
+				return ErrorStrings[i].ErrorString;
+		}
+
+		stringstream s;
+		s << "0x" << ErrorCode;
+		return s.str();
+	}
+
+	#ifdef TC_HEADER_Common_Exception
+	void PCSCException::Show(HWND parent) const
+	{
+		string errorString = string(*this);
+
+		if (!errorString.empty())
+		{
+			wstringstream subjectErrorCode;
+			if (SubjectErrorCodeValid)
+				subjectErrorCode << L": " << SubjectErrorCode;
+
+			if (!GetDictionaryValue(errorString.c_str()))
+			{
+				if (errorString.find("SCARD_E_") == 0 || errorString.find("SCARD_F_") == 0 || errorString.find("SCARD_W_") == 0)
+				{
+					errorString = errorString.substr(8);
+					for (size_t i = 0; i < errorString.size(); ++i)
+					{
+						if (errorString[i] == '_')
+							errorString[i] = ' ';
+					}
+				}
+				wchar_t err[8192];
+				StringCbPrintfW(err, sizeof(err), L"%s:\n\n%hs%s", GetString("PCSC_ERROR"), errorString.c_str(), subjectErrorCode.str().c_str());
+				ErrorDirect(err, parent);
+			}
+			else
+			{
+				wstring err = GetString(errorString.c_str());
+
+				if (SubjectErrorCodeValid)
+					err += L"\n\nError code" + subjectErrorCode.str();
+
+				ErrorDirect(err.c_str(), parent);
+			}
+		}
+	}
+	#endif // TC_HEADER_Common_Exception
+
+#ifdef TC_HEADER_Platform_Exception
+
+    void PCSCException::Deserialize(shared_ptr <Stream> stream)
+	{
+		Exception::Deserialize(stream);
+		Serializer sr(stream);
+		uint64 code;
+		sr.Deserialize("ErrorCode", code);
+		sr.Deserialize("SubjectErrorCodeValid", SubjectErrorCodeValid);
+		sr.Deserialize("SubjectErrorCode", SubjectErrorCode);
+		ErrorCode = (LONG)code;
+	}
+
+	void PCSCException::Serialize(shared_ptr <Stream> stream) const
+	{
+		Exception::Serialize(stream);
+		Serializer sr(stream);
+		sr.Serialize("ErrorCode", (uint64)ErrorCode);
+		sr.Serialize("SubjectErrorCodeValid", SubjectErrorCodeValid);
+		sr.Serialize("SubjectErrorCode", SubjectErrorCode);
+	}
+
+#	define TC_EXCEPTION(TYPE) TC_SERIALIZER_FACTORY_ADD(TYPE)
+#	undef TC_EXCEPTION_NODECL
+#	define TC_EXCEPTION_NODECL(TYPE) TC_SERIALIZER_FACTORY_ADD(TYPE)
+
+	TC_SERIALIZER_FACTORY_ADD_EXCEPTION_SET(PCSCTokenException);
+
+#endif
+
 }

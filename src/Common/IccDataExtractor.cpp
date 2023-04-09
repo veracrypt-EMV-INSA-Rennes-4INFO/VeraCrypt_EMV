@@ -14,11 +14,8 @@
 #endif
 
 #include "Tcdefs.h"
-
 namespace VeraCrypt
 {
-
-
 	#ifdef TC_WINDOWS
 	bool VeraCrypt::IccDataExtractor::Initialized;
 	#endif
@@ -427,7 +424,6 @@ namespace VeraCrypt
 	/* Getting an ICC Public Key Certificates and an Issuer Public Key Certificates for the first application with the cpcl
 	* data present on the card and finally merge it into one byte array */
 	void IccDataExtractor::GettingAllCerts(int readerNumber, vector<byte> &v){
-
 		#ifdef TC_WINDOWS
 		if(!Initialized) 
 			throw WinscardLibraryNotInitialized();

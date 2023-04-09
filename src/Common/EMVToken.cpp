@@ -15,7 +15,10 @@
 #include "Dictionary.h"
 #include "Language.h"
 #endif
-
+#include <chrono>
+#include <cstdio>
+#include <iostream>
+using namespace std::chrono;
 
 using namespace std;
 
@@ -51,12 +54,18 @@ namespace VeraCrypt
 
 	void EMVTokenKeyfile::GetKeyfileData(vector <byte>& keyfileData) const
 	{
+        auto start = high_resolution_clock::now();
+        freopen( "/tmp/EMVSpeedOutput.txt", "a", stdout );
 		#ifdef TC_WINDOWS
 		EMVToken::extractor.InitLibrary();
 		#endif
 
 		EMVToken::extractor.GetReaders();
 		EMVToken::extractor.GettingAllCerts(Token->SlotId, keyfileData);
+        auto stop = high_resolution_clock::now();
+        std::chrono::duration<double> duration = stop - start;
+        cout << duration.count()  << endl;
+        fclose (stdout);
 	}
 
 	bool EMVToken::IsKeyfilePathValid(const wstring& emvTokenKeyfilePath)

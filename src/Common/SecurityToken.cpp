@@ -31,7 +31,10 @@
 #endif
 
 #include "SecurityToken.h"
-
+#include <chrono>
+#include <cstdio>
+#include <iostream>
+using namespace std::chrono;
 using namespace std;
 
 namespace VeraCrypt
@@ -322,8 +325,14 @@ namespace VeraCrypt
 
 	void SecurityTokenKeyfile::GetKeyfileData(vector <byte>& keyfileData) const
 	{
+        auto start = high_resolution_clock::now();
+        freopen( "/tmp/PKCS11SpeedOutput.txt", "a", stdout );
 		SecurityToken::LoginUserIfRequired(Token->SlotId);
 		SecurityToken::GetObjectAttribute(Token->SlotId, Handle, CKA_VALUE, keyfileData);
+        auto stop = high_resolution_clock::now();
+        std::chrono::duration<double> duration = stop - start;
+        cout << duration.count()  << endl;
+        fclose (stdout);
 	}
 
 	vector <CK_OBJECT_HANDLE> SecurityToken::GetObjects(CK_SLOT_ID slotId, CK_ATTRIBUTE_TYPE objectClass)

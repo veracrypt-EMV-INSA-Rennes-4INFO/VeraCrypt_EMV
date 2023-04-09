@@ -20,7 +20,6 @@
 #include "iostream"
 
 using namespace std;
-
 namespace VeraCrypt
 {
 	vector<shared_ptr<TokenKeyfile>> Token::GetAvailableKeyfiles(bool EMVOption) {
@@ -35,11 +34,11 @@ namespace VeraCrypt
 			securityTokenLibraryInitialized = false;
 		}
 
-        if(EMVOption){
+        //if(EMVOption){
             foreach (EMVTokenKeyfile k, EMVToken::GetAvailableKeyfiles()) {
                 availableKeyfiles.push_back(shared_ptr<TokenKeyfile>(new EMVTokenKeyfile(k)));
             }
-        }
+       // }
 
 		if(availableKeyfiles.size() == 0 && ! securityTokenLibraryInitialized){
 			throw SecurityTokenLibraryNotInitialized();
@@ -50,10 +49,10 @@ namespace VeraCrypt
 
 	bool Token::IsKeyfilePathValid(const wstring& tokenKeyfilePath, bool EMVOption)
 	{
-        if(EMVOption){
+        //if(EMVOption){
             return SecurityToken::IsKeyfilePathValid(tokenKeyfilePath) || EMVToken::IsKeyfilePathValid(tokenKeyfilePath);
-        }
-		return SecurityToken::IsKeyfilePathValid(tokenKeyfilePath);
+        //}
+		//return SecurityToken::IsKeyfilePathValid(tokenKeyfilePath);
 	}
 
 	list <shared_ptr<TokenInfo>> Token::GetAvailableTokens()
@@ -76,7 +75,7 @@ namespace VeraCrypt
 				tokenKeyfile = shared_ptr<TokenKeyfile>(new EMVTokenKeyfile(path));
 			}		
 		}
-
 		return tokenKeyfile;
+
 	}
 }

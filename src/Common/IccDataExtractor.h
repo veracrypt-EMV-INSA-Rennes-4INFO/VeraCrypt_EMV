@@ -202,27 +202,27 @@ namespace VeraCrypt
 
 	struct WinscardLibraryNotInitialized: public Exception
 	{
-		void Show(HWND parent) const { Error("WINSCARD_MODULE_INIT_FAILED", parent); }
+		void Show(HWND parent) const { };//Error("WINSCARD_MODULE_INIT_FAILED", parent); }
 	};
 
 	struct InvalidEMVPath: public Exception
 	{
-		void Show(HWND parent) const { Error("INVALID_EMV_PATH", parent); }
+		void Show(HWND parent) const { };//Error("INVALID_EMV_PATH", parent); }
 	};
 
 	struct EMVKeyfileDataNotFound: public Exception
 	{
-		void Show(HWND parent) const { Error("EMV_KEYFILE_DATA_NOT_FOUND", parent); }
+		void Show(HWND parent) const { };//Error("EMV_KEYFILE_DATA_NOT_FOUND", parent); }
 	};
 
 	struct EMVPANNotFound: public Exception
 	{
-		void Show(HWND parent) const { Error("EMV_PAN_NOT_FOUND", parent); }
+		void Show(HWND parent) const {};// Error("EMV_PAN_NOT_FOUND", parent); }
 	};
 
 	struct EMVUnknownCardType: public Exception
 	{
-		void Show(HWND parent) const { Error("EMV_UNKNOWN_CARD_TYPE", parent); }
+		void Show(HWND parent) const {};// Error("EMV_UNKNOWN_CARD_TYPE", parent); }
 	};
 
 	#endif // !TC_HEADER_Platform_Exception

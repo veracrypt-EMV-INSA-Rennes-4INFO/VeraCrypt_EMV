@@ -6,17 +6,6 @@
 #include <iostream>
 
 
-
-#if !defined(TC_WINDOWS) || defined(TC_PROTOTYPE)
-#include "Platform/SerializerFactory.h"
-#include "Platform/StringConverter.h"
-#include "Platform/SystemException.h"
-#else
-#include "Dictionary.h"
-#include "Language.h"
-#endif
-
-
 using namespace std;
 
 namespace VeraCrypt
@@ -82,14 +71,13 @@ namespace VeraCrypt
 			if (slotIdFilter && *slotIdFilter != slotId)
 				continue;
 
-			try{
+			//try{
 				token = GetTokenInfo(slotId);
-			} catch(EMVUnknownCardType) {
-				continue;
-			}catch(PCSCException){
-
-					continue;
-			}
+			//} catch(EMVUnknownCardType) {
+				//continue;
+			//}catch(PCSCException){
+					//continue;
+			//}
 
 			EMVTokenKeyfile keyfile;
 			keyfile.Token->SlotId = slotId;

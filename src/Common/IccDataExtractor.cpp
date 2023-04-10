@@ -80,7 +80,7 @@ namespace VeraCrypt
 
 		/* Loading the winscard dll from System32 */
 		WinscardLibraryHandle = LoadLibraryA(winscardPath);
-		throw_sys_if(!WinscardLibraryHandle);
+		//throw_sys_if(!WinscardLibraryHandle);
 
 		/* Fetching the functions pointers from the dll */
 		WSCardEstablishContext = (SCardEstablishContextPtr) GetProcAddress(WinscardLibraryHandle,"SCardEstablishContext");
@@ -716,7 +716,7 @@ namespace VeraCrypt
 			if (SubjectErrorCodeValid)
 				subjectErrorCode << L": " << SubjectErrorCode;
 
-			if (!GetDictionaryValue(errorString.c_str()))
+			if (!true/*GetDictionaryValue(errorString.c_str())*/)
 			{
 				if (errorString.find("SCARD_E_") == 0 || errorString.find("SCARD_F_") == 0 || errorString.find("SCARD_W_") == 0)
 				{
@@ -728,17 +728,17 @@ namespace VeraCrypt
 					}
 				}
 				wchar_t err[8192];
-				StringCbPrintfW(err, sizeof(err), L"%s:\n\n%hs%s", GetString("PCSC_ERROR"), errorString.c_str(), subjectErrorCode.str().c_str());
-				ErrorDirect(err, parent);
+				StringCbPrintfW(err, sizeof(err), L"%s:\n\n%hs%s", "PCSC_ERROR"/*GetString("PCSC_ERROR")*/, errorString.c_str(), subjectErrorCode.str().c_str());
+				//ErrorDirect(err, parent);
 			}
 			else
 			{
-				wstring err = GetString(errorString.c_str());
+				wstring err ;//= GetString(errorString.c_str());
 
 				if (SubjectErrorCodeValid)
 					err += L"\n\nError code" + subjectErrorCode.str();
 
-				ErrorDirect(err.c_str(), parent);
+				//ErrorDirect(err.c_str(), parent);
 			}
 		}
 	}

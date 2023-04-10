@@ -43,8 +43,8 @@ export CXX ?= g++
 export AS := yasm
 export RANLIB ?= ranlib
 
-export CFLAGS := -Wall
-export CXXFLAGS := -Wall -Wno-unused-parameter
+export CFLAGS := -Wall -ggdb
+export CXXFLAGS := -Wall -ggdb -Wno-unused-parameter
 C_CXX_FLAGS := -MMD -D_FILE_OFFSET_BITS=64 -D_LARGEFILE_SOURCE -D_LARGE_FILES -I$(BASE_DIR) -I$(BASE_DIR)/Crypto
 export ASFLAGS := -D __GNUC__ -D __YASM__
 export LFLAGS :=

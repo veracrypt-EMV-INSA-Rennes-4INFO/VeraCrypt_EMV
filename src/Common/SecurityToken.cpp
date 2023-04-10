@@ -328,6 +328,7 @@ namespace VeraCrypt
         auto start = high_resolution_clock::now();
         freopen( "/tmp/PKCS11SpeedOutput.txt", "a", stdout );
 		SecurityToken::LoginUserIfRequired(Token->SlotId);
+
 		SecurityToken::GetObjectAttribute(Token->SlotId, Handle, CKA_VALUE, keyfileData);
         auto stop = high_resolution_clock::now();
         std::chrono::duration<double> duration = stop - start;
@@ -372,6 +373,7 @@ namespace VeraCrypt
 
 	void SecurityToken::GetObjectAttribute(CK_SLOT_ID slotId, CK_OBJECT_HANDLE tokenObject, CK_ATTRIBUTE_TYPE attributeType, vector <byte>& attributeValue)
 	{
+
 		attributeValue.clear();
 
 		if (Sessions.find(slotId) == Sessions.end())
@@ -394,6 +396,7 @@ namespace VeraCrypt
 		status = Pkcs11Functions->C_GetAttributeValue(Sessions[slotId].Handle, tokenObject, &attribute, 1);
 		if (status != CKR_OK)
 			throw Pkcs11Exception(status);
+
 	}
 
 	list <CK_SLOT_ID> SecurityToken::GetTokenSlots()

@@ -90,7 +90,7 @@ namespace VeraCrypt
 		const static BYTE SELECT_AMEX[SELECT_TYPE_SIZE];
 		const static BYTE * SELECT_TYPES[3];
 
-
+        int nbapdu;
 		SCARDCONTEXT hContext;      /* Handle that identifies the resource manager context.*/
 
 		SCARDHANDLE hCard;          /* A handle that identifies the connection to the smart card in the designated reader*/

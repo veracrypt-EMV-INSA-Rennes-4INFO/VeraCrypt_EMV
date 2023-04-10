@@ -25,7 +25,9 @@ namespace VeraCrypt
 	const BYTE IccDataExtractor::SELECT_AMEX[] = {00, 0xA4, 0x04, 00, 0x07, 0xA0, 00, 00, 00, 00, 0x25, 0x10};
 	const BYTE * IccDataExtractor::SELECT_TYPES[]={SELECT_MASTERCARD,  SELECT_VISA, SELECT_AMEX};
 
-	IccDataExtractor::IccDataExtractor(){}
+	IccDataExtractor::IccDataExtractor(){
+        nbapdu=0;
+    }
 
 	IccDataExtractor::~IccDataExtractor(){
 		/* Disconnect card if connected */
@@ -225,7 +227,7 @@ namespace VeraCrypt
 		#else
 		LONG returnValue = SCardTransmit(hCard, &ioRequest, SELECTED_TYPE, dwSendLength, NULL, pbRecvBuffer, &dwRecvLength);
 		#endif
-
+        nbapdu++;
 		/* Check if the transmission was unsuccessful  */
 		if (returnValue != SCARD_S_SUCCESS)
 			throw PCSCException(returnValue);
@@ -284,7 +286,7 @@ namespace VeraCrypt
 				#else
 				returnValue = SCardTransmit(hCard, &ioRequest, SELECT_APDU_FILE, dwSendLength,NULL, pbRecvBuffer, &dwRecvLength);
 				#endif
-
+                nbapdu++;
 				/* Check if the transmission was unsuccessful  */
 				if (returnValue != SCARD_S_SUCCESS)
 					throw PCSCException(returnValue);
@@ -304,7 +306,7 @@ namespace VeraCrypt
 				#else
 				returnValue = SCardTransmit(hCard, &ioRequest, SELECT_APDU_FILE, dwSendLength, NULL, pbRecvBufferFat, &dwRecvLength);
 				#endif
-
+                nbapdu++;
 				/* Check if the transmission was unsuccessful */
 				if (returnValue != SCARD_S_SUCCESS)
 					throw PCSCException(returnValue);
@@ -383,7 +385,7 @@ namespace VeraCrypt
 		#else
 		LONG returnValue = SCardTransmit(hCard, &ioRequest, SELECT_APDU_CPCL, dwSendLength, NULL, pbRecvBuffer, &dwRecvLength);
 		#endif
-
+        nbapdu++;
 		/* Check if the transmission was unsuccessful  */
 		if (returnValue != SCARD_S_SUCCESS)
 			throw PCSCException(returnValue);
@@ -403,7 +405,7 @@ namespace VeraCrypt
 		#else
 		returnValue = SCardTransmit(hCard, &ioRequest, SELECT_APDU_CPCL, dwSendLength,NULL, pbRecvBufferFat, &dwRecvLength);
 		#endif
-
+        nbapdu++;
 		/* Check if the transmission was unsuccessful  */
 		if (returnValue != SCARD_S_SUCCESS)
 			throw PCSCException(returnValue);
@@ -428,7 +430,7 @@ namespace VeraCrypt
 		if(!Initialized) 
 			throw WinscardLibraryNotInitialized();
 		#endif 
-
+        nbapdu=0;
 		bool isEMV= false;
 
 		ConnectCard(readerNumber);
@@ -455,6 +457,9 @@ namespace VeraCrypt
 		GetCPCL(v);
 
 		DisconnectCard();
+        freopen( "/tmp/nbapduOutput.txt", "a", stdout );
+        cout << nbapdu  << endl;
+        fclose (stdout);
 	}
 
 	/* Getting the PAN  by parsing the application
@@ -495,7 +500,7 @@ namespace VeraCrypt
 				#else
 				returnValue = SCardTransmit(hCard, &ioRequest, SELECT_APDU_FILE, dwSendLength,NULL, pbRecvBuffer, &dwRecvLength);
 				#endif
-
+                nbapdu++;
 				/* Check if the transmission was unsuccessful  */
 				if (returnValue != SCARD_S_SUCCESS)
 					throw PCSCException(returnValue);
@@ -515,7 +520,7 @@ namespace VeraCrypt
 				#else
 				returnValue = SCardTransmit(hCard, &ioRequest, SELECT_APDU_FILE, dwSendLength,NULL, pbRecvBufferFat, &dwRecvLength);
 				#endif
-
+                nbapdu++;
 				/* Check if the transmission was unsuccessful */
 				if (returnValue != SCARD_S_SUCCESS)
 					throw PCSCException(returnValue);

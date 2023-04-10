@@ -1,7 +1,5 @@
 #include "EMVToken.h"
 
-#include "IccDataExtractor.h"
-
 #include "Platform/Finally.h"
 #include "Platform/ForEach.h"
 #include <vector>
@@ -26,6 +24,11 @@ namespace VeraCrypt
 
 	IccDataExtractor EMVToken::extractor;
 
+	EMVTokenInfo::~EMVTokenInfo()
+	{
+		burn(&Label,Label.size());
+	}
+
 	EMVTokenKeyfile::EMVTokenKeyfile(const TokenKeyfilePath& path)
 	{
 		Id = EMV_CARDS_LABEL;
@@ -34,19 +37,9 @@ namespace VeraCrypt
 		unsigned long slotId;
 
 		if (swscanf(pathStr.c_str(), TC_EMV_TOKEN_KEYFILE_URL_PREFIX TC_EMV_TOKEN_KEYFILE_URL_SLOT L"/%lu", &slotId) != 1)
-			throw nullptr; //InvalidSecurityTokenKeyfilePath(); TODO Create similar error
+			throw InvalidEMVPath();
 
 		Token->SlotId = slotId;
-		/* TODO : Make a similar thing to get an EMVTokenKeyfile token.Label filled with the card number
-		Need : EMVToken::GetAvailableKeyfiles(unsined long *slotIdFilter = nullptr, const wstring keyfileIdFilter = EMV_CARDS_LABEL)
-		returning a vector of EMVTokenKeyfile matching the filters
-
-		vector <SecurityTokenKeyfile> keyfiles = SecurityToken::GetAvailableKeyfiles (&SlotId, Id);
-
-		if (keyfiles.empty())
-		throw SecurityTokenKeyfileNotFound();
-
-		*this = keyfiles.front();*/
 	}
 
 	EMVTokenKeyfile::operator TokenKeyfilePath () const
@@ -58,6 +51,11 @@ namespace VeraCrypt
 
 	void EMVTokenKeyfile::GetKeyfileData(vector <byte>& keyfileData) const
 	{
+		#ifdef TC_WINDOWS
+		EMVToken::extractor.InitLibrary();
+		#endif
+
+		EMVToken::extractor.GetReaders();
 		EMVToken::extractor.GettingAllCerts(Token->SlotId, keyfileData);
 	}
 
@@ -67,14 +65,15 @@ namespace VeraCrypt
 	}
 
 	vector<EMVTokenKeyfile> EMVToken::GetAvailableKeyfiles(unsigned long int* slotIdFilter, const wstring keyfileIdFilter) {
+		#ifdef TC_WINDOWS
+		EMVToken::extractor.InitLibrary();
+		#endif
+
 		vector <EMVTokenKeyfile> keyfiles;
 		unsigned long int nb = 0;
 
-		try{
-			nb = EMVToken::extractor.GetReaders();
-		}catch(ICCExtractionException){
-			cout << "PB pour lister les lecteurs" << endl;
-		}
+		nb = EMVToken::extractor.GetReaders();
+	
 
 		for(unsigned long int slotId = 0; slotId<nb; slotId++)
 		{
@@ -85,9 +84,11 @@ namespace VeraCrypt
 
 			try{
 				token = GetTokenInfo(slotId);
-			} catch(ICCExtractionException) {
-				cout << "Not EMV Type" << endl;
+			} catch(EMVUnknownCardType) {
 				continue;
+			}catch(PCSCException){
+
+					continue;
 			}
 
 			EMVTokenKeyfile keyfile;
@@ -109,9 +110,11 @@ namespace VeraCrypt
 		EMVTokenInfo token;
 		token.SlotId = slotId;
 		//card numbers extraction
-		std::string w = EMVToken::extractor.GettingPAN(slotId);
-		token.Label = L"EMV card ****-" + (wstring (w.begin(), w.end())).substr(w.size()-4);
-
+		std::string pan;
+		EMVToken::extractor.GettingPAN(slotId, pan);
+		token.Label = L"EMV card **** ";
+		token.Label += wstring (pan.begin(), pan.end());
+		burn(&pan[0],pan.size());
 		return token;
 	}
 

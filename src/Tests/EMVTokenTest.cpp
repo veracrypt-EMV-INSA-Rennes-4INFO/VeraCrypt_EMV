@@ -20,7 +20,7 @@ TEST_F(EMVTokenTest, noCard)
 {
 	vector<VeraCrypt::EMVTokenKeyfile> availableKeyfile;
 	availableKeyfile = VeraCrypt::EMVToken::GetAvailableKeyfiles();
-	EXPECT_EQ(0, availableKeyfile.size());
+	EXPECT_EQ(availableKeyfile.size(),0);
 
 }
 
